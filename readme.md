@@ -15,13 +15,7 @@ two DSUB-9-male connectors for the joysticks).
 Project status:
 ---------------
 
-* Port 1 works, and the Leonardo is identified as a single 2-axis-1-button gamepad
-
-TODO:
------
-
-* Add second port and register a second USB device to make the device appear as two
-  individual game pads.
+* works on Windows 10 and Linux (see notes below)
 
 Components:
 -----------
@@ -62,6 +56,33 @@ Required software libraries:
 ----------------------------
 
 * https://github.com/MHeironimus/ArduinoJoystickLibrary
+
+Usage on Windows
+----------------
+
+On Windows (tested on Windows 10), the device is detected as a game controller named
+"Arduino Leonardo". This device contains two actual game pads which you can assign
+separately e.g. when using an emulator like Vice.
+
+Usage on Linux
+--------------
+
+On Linux (tested on Lubuntu 18.04 and RetroPie 4.4), the device will only be detected
+as a single joystick. To make it work, you need to set a special parameter for the
+usbhid kernel module. On Lubunte, I created a file "/etc/modprobe.d/usbhid-quirks.conf"
+with the following content:
+
+    options usbhid quirks=0x2341:0x8036:0x040
+
+On the Raspberry Pi running RetroPie, usbhid is built-in. Therefore, you have to pass
+the parameters on the kernel command line by adding them to /boot/cmdline.txt. Just
+add
+
+    usbhid.quirks=0x2341:0x8036:0x040
+
+to the end of the single line in the file, separated from the other options by a blank.
+
+In both cases, you have to reload the usbhid module or reboot the device to make it work.
 
 Thanks:
 -------

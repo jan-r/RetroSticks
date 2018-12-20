@@ -54,11 +54,11 @@
 #define PORT1_BTN   A4
 
 // Hardware setup - port 2
-#define PORT2_UP    D6
-#define PORT2_DOWN  D5
-#define PORT2_LEFT  D4
-#define PORT2_RIGHT D3
-#define PORT2_BTN   D7
+#define PORT2_UP    6
+#define PORT2_DOWN  5
+#define PORT2_LEFT  4
+#define PORT2_RIGHT 3
+#define PORT2_BTN   7
 
 // Debouncing filter for the input. Defines the number of times a pin
 // must keep a steady value before being recognized by the software.
@@ -77,7 +77,13 @@
 
 #ifndef SERIAL_DEBUGGING
 // The USB joystick device
-Joystick_ Joystick(JOYSTICK_DEFAULT_REPORT_ID,JOYSTICK_TYPE_GAMEPAD,
+Joystick_ Joystick1(JOYSTICK_DEFAULT_REPORT_ID,JOYSTICK_TYPE_GAMEPAD,
+  1, 0,                  // Button Count, Hat Switch Count
+  true, true, false,     // X and Y, but no Z Axis
+  false, false, false,   // No Rx, Ry, or Rz
+  false, false,          // No rudder or throttle
+  false, false, false);  // No accelerator, brake, or steering
+Joystick_ Joystick2(JOYSTICK_DEFAULT_REPORT_ID+1,JOYSTICK_TYPE_GAMEPAD,
   1, 0,                  // Button Count, Hat Switch Count
   true, true, false,     // X and Y, but no Z Axis
   false, false, false,   // No Rx, Ry, or Rz
@@ -85,86 +91,129 @@ Joystick_ Joystick(JOYSTICK_DEFAULT_REPORT_ID,JOYSTICK_TYPE_GAMEPAD,
   false, false, false);  // No accelerator, brake, or steering
 #endif
 
-// input map (maps port pins to the logical values; same order as the IDX_... constants)
-int inputMap[5] = {PORT1_UP, PORT1_DOWN, PORT1_LEFT, PORT1_RIGHT, PORT1_BTN};
+// A structure holding everything we need to know about a single joystick.
+typedef struct
+{
+  // input map (maps port pins to the logical values; same order as the IDX_... constants)
+  int inputMap[5];
 
-// input filter for debouncing the raw pin input
-int8_t buttonFilter[5] = {FILTER_MAX,FILTER_MAX,FILTER_MAX,FILTER_MAX,FILTER_MAX};
+  // input filter for debouncing the raw pin input
+  int8_t buttonFilter[5];
 
-// Last state of the switches
-int8_t buttonState[5] = {0,0,0,0,0};
+  // Last state of the switches
+  int8_t buttonState[5];
+#ifndef SERIAL_DEBUGGING
+  // Joystick instance
+  Joystick_& joystick;
+#else
+  const char* joystick;
+#endif
+} PORT_T;
+
+PORT_T ports[2] =
+{
+  {
+    {PORT1_UP, PORT1_DOWN, PORT1_LEFT, PORT1_RIGHT, PORT1_BTN},
+    {FILTER_MAX,FILTER_MAX,FILTER_MAX,FILTER_MAX,FILTER_MAX},
+    {0,0,0,0,0},
+    #ifndef SERIAL_DEBUGGING
+    Joystick1
+    #else
+    "P1"
+    #endif
+  },
+  {
+    {PORT2_UP, PORT2_DOWN, PORT2_LEFT, PORT2_RIGHT, PORT2_BTN},
+    {FILTER_MAX,FILTER_MAX,FILTER_MAX,FILTER_MAX,FILTER_MAX},
+    {0,0,0,0,0},
+    #ifndef SERIAL_DEBUGGING
+    Joystick2
+    #else
+    "P2"
+    #endif
+  }
+};
 
 // Arduino standard setup function
 void setup()
 {
-  // Initialize Button Pins
-  for (int8_t index = 0; index < 5; index++)
+  for (int8_t stickindex = 0; stickindex < 2; stickindex++)
   {
-    pinMode(inputMap[index], INPUT_PULLUP);
-  }
+    // Initialize Button Pins
+    for (int8_t index = 0; index < 5; index++)
+    {
+      pinMode(ports[stickindex].inputMap[index], INPUT_PULLUP);
+    }
 
 #ifndef SERIAL_DEBUGGING
-  // Initialize Joystick Library
-  Joystick.begin(false);
-  Joystick.setXAxisRange(-1, 1);
-  Joystick.setYAxisRange(-1, 1);
-#else
-  Serial.begin(115200);
+    // Initialize Joystick Library
+    ports[stickindex].joystick.begin(false);
+    ports[stickindex].joystick.setXAxisRange(-1, 1);
+    ports[stickindex].joystick.setYAxisRange(-1, 1);
+#endif
+  }
+  
+#ifdef SERIAL_DEBUGGING
+    Serial.begin(115200);
 #endif  
 }
 
 // Arduino standard loop function
 void loop()
 {
-  bool changed = false;
-  
-  // Read pin values
-  for (int8_t index = 0; index < 5; index++)
+  for (int8_t stickindex = 0; stickindex < 2; stickindex++)
   {
-    // read pin
-    int8_t currentPinState = digitalRead(inputMap[index]);
-
-    // debounce pin
-    if ((currentPinState == 0) && (buttonFilter[index] > 0))
-    {
-      // pin LOW (button pressed)
-      buttonFilter[index]--;
-    }
-    else if ((currentPinState == 1) && (buttonFilter[index] < FILTER_MAX))
-    {
-      // pin HIGH (button not pressed)
-      buttonFilter[index]++;
-    }
-
-    // evaluate state change
-    if ((buttonState[index] == 1) && (buttonFilter[index] == FILTER_MAX))
-    {
-      // button released
-      buttonEvent(index, EV_RELEASE);
-      changed = true;
-      buttonState[index] = 0;
-    }
-    else if ((buttonState[index] == 0) && (buttonFilter[index] == 0))
-    {
-      // button pressed
-      buttonEvent(index, EV_PRESS);
-      changed = true;
-      buttonState[index] = 1;
-    }
+    bool changed = false;
+    PORT_T& p = ports[stickindex];
     
-  }
-  if (changed)
-  {
-#ifndef SERIAL_DEBUGGING
-    Joystick.sendState();
-#endif
+    // Read pin values
+    for (int8_t index = 0; index < 5; index++)
+    {
+      // read pin
+      int8_t currentPinState = digitalRead(p.inputMap[index]);
+  
+      // debounce pin
+      if ((currentPinState == 0) && (p.buttonFilter[index] > 0))
+      {
+        // pin LOW (button pressed)
+        p.buttonFilter[index]--;
+      }
+      else if ((currentPinState == 1) && (p.buttonFilter[index] < FILTER_MAX))
+      {
+        // pin HIGH (button not pressed)
+        p.buttonFilter[index]++;
+      }
+  
+      // evaluate state change
+      if ((p.buttonState[index] == 1) && (p.buttonFilter[index] == FILTER_MAX))
+      {
+        // button released
+        buttonEvent(p, index, EV_RELEASE);
+        changed = true;
+        p.buttonState[index] = 0;
+      }
+      else if ((p.buttonState[index] == 0) && (p.buttonFilter[index] == 0))
+      {
+        // button pressed
+        buttonEvent(p, index, EV_PRESS);
+        changed = true;
+        p.buttonState[index] = 1;
+      }
+      
+    }
+    if (changed)
+    {
+      #ifndef SERIAL_DEBUGGING
+      p.joystick.sendState();
+      #endif
+    }
   }
   delay(5);
 }
 
 // Convert press/release events of the individual buttons into
 // axis movements of the HID device.
-void buttonEvent(int8_t index, int8_t event)
+void buttonEvent(PORT_T& port, int8_t index, int8_t event)
 {
   switch(index)
   {
@@ -172,16 +221,18 @@ void buttonEvent(int8_t index, int8_t event)
       if (event == EV_PRESS)
       {
         #ifndef SERIAL_DEBUGGING
-        Joystick.setYAxis(-1);
+        port.joystick.setYAxis(-1);
         #else
+        Serial.print(port.joystick);
         Serial.println("UP p");
         #endif
       }
       else
       {
         #ifndef SERIAL_DEBUGGING
-        Joystick.setYAxis(0);
+        port.joystick.setYAxis(0);
         #else
+        Serial.print(port.joystick);
         Serial.println("UP r");
         #endif
       }
@@ -191,16 +242,18 @@ void buttonEvent(int8_t index, int8_t event)
       if (event == EV_PRESS)
       {
         #ifndef SERIAL_DEBUGGING
-        Joystick.setYAxis(1);
+        port.joystick.setYAxis(1);
         #else
+        Serial.print(port.joystick);
         Serial.println("DN p");
         #endif
       }
       else
       {
         #ifndef SERIAL_DEBUGGING
-        Joystick.setYAxis(0);
+        port.joystick.setYAxis(0);
         #else
+        Serial.print(port.joystick);
         Serial.println("DN r");
         #endif
       }
@@ -210,16 +263,18 @@ void buttonEvent(int8_t index, int8_t event)
       if (event == EV_PRESS)
       {
         #ifndef SERIAL_DEBUGGING
-        Joystick.setXAxis(-1);
+        port.joystick.setXAxis(-1);
         #else
+        Serial.print(port.joystick);
         Serial.println("LFT p");
         #endif
       }
       else
       {
         #ifndef SERIAL_DEBUGGING
-        Joystick.setXAxis(0);
+        port.joystick.setXAxis(0);
         #else
+        Serial.print(port.joystick);
         Serial.println("LFT r");
         #endif
       }
@@ -229,16 +284,18 @@ void buttonEvent(int8_t index, int8_t event)
       if (event == EV_PRESS)
       {
         #ifndef SERIAL_DEBUGGING
-        Joystick.setXAxis(1);
+        port.joystick.setXAxis(1);
         #else
+        Serial.print(port.joystick);
         Serial.println("RGT p");
         #endif
       }
       else
       {
         #ifndef SERIAL_DEBUGGING
-        Joystick.setXAxis(0);
+        port.joystick.setXAxis(0);
         #else
+        Serial.print(port.joystick);
         Serial.println("RGT r");
         #endif
       }
@@ -248,16 +305,18 @@ void buttonEvent(int8_t index, int8_t event)
       if (event == EV_PRESS)
       {
         #ifndef SERIAL_DEBUGGING
-        Joystick.setButton(0, 1);
+        port.joystick.setButton(0, 1);
         #else
+        Serial.print(port.joystick);
         Serial.println("BTN p");
         #endif
       }
       else
       {
         #ifndef SERIAL_DEBUGGING
-        Joystick.setButton(0, 0);
+        port.joystick.setButton(0, 0);
         #else
+        Serial.print(port.joystick);
         Serial.println("BTN r");
         #endif
       }
