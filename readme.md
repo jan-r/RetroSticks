@@ -69,7 +69,7 @@ Usage on Linux
 
 On Linux (tested on Lubuntu 18.04 and RetroPie 4.4), the device will only be detected
 as a single joystick. To make it work, you need to set a special parameter for the
-usbhid kernel module. On Lubunte, I created a file "/etc/modprobe.d/usbhid-quirks.conf"
+usbhid kernel module. On Lubuntu, I created a file "/etc/modprobe.d/usbhid-quirks.conf"
 with the following content:
 
     options usbhid quirks=0x2341:0x8036:0x040
