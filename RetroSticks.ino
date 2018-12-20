@@ -1,18 +1,50 @@
-//--------------------------------------------------------------------
-// RetroSticks
-//
-// A C64-joystick-to-USB-converter based on an Arduino Leonardo.
-// When connected to a PC, it identifies as a HID device with two
-// 2-axis-1-button joysticks.
-//
-// (c)2018 by Jan Reucker
-//
-// This sketch uses Matthew Heironimus' Arduino Joystick library
-// (https://github.com/MHeironimus/ArduinoJoystickLibrary) and
-// is based on the GamepadExample sketch that comes with this lib.
-//--------------------------------------------------------------------
+/*
+ * RetroSticks
+ *
+ * A C64-joystick-to-USB-converter based on an Arduino Leonardo.
+ * When connected to a PC, it identifies as a HID device with two
+ * 2-axis-1-button joysticks.
+ *
+ * This sketch uses Matthew Heironimus' Arduino Joystick library
+ * (https://github.com/MHeironimus/ArduinoJoystickLibrary) and
+ * is based on the GamepadExample sketch that comes with this lib.
+ *
+ * This file is licensed under the BSD 3-clause license.
+ *
+ * Copyright 2018 Jan Reucker
+ *
+ * Redistribution and use in source and binary forms, with or without modification,
+ * are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice, this
+ *    list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright notice,
+ *    this list of conditions and the following disclaimer in the documentation
+ *    and/or other materials provided with the distribution.
+ *
+ * 3. Neither the name of the copyright holder nor the names of its contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 
 #include <Joystick.h>
+
+// Set this define to output events to the serial port instead of acting like
+// a real joystick. In that case, no USB HID device will be created. Open the
+// Arduino IDE's serial monitor to see the joystick's events.
+//#define SERIAL_DEBUGGING
 
 // Hardware setup - port 1
 #define PORT1_UP    A0
@@ -28,6 +60,8 @@
 #define PORT2_RIGHT D3
 #define PORT2_BTN   D7
 
+// Debouncing filter for the input. Defines the number of times a pin
+// must keep a steady value before being recognized by the software.
 #define FILTER_MAX  2
 
 // value order in indexed arrays
@@ -41,11 +75,8 @@
 #define EV_RELEASE    0
 #define EV_PRESS      1
 
-// Set this define to output events to the serial port instead of acting like
-// a real joystick
-//#define SERIAL_DEBUGGING
-
 #ifndef SERIAL_DEBUGGING
+// The USB joystick device
 Joystick_ Joystick(JOYSTICK_DEFAULT_REPORT_ID,JOYSTICK_TYPE_GAMEPAD,
   1, 0,                  // Button Count, Hat Switch Count
   true, true, false,     // X and Y, but no Z Axis
@@ -63,7 +94,9 @@ int8_t buttonFilter[5] = {FILTER_MAX,FILTER_MAX,FILTER_MAX,FILTER_MAX,FILTER_MAX
 // Last state of the switches
 int8_t buttonState[5] = {0,0,0,0,0};
 
-void setup() {
+// Arduino standard setup function
+void setup()
+{
   // Initialize Button Pins
   for (int8_t index = 0; index < 5; index++)
   {
@@ -80,7 +113,9 @@ void setup() {
 #endif  
 }
 
-void loop() {
+// Arduino standard loop function
+void loop()
+{
   bool changed = false;
   
   // Read pin values
@@ -127,6 +162,8 @@ void loop() {
   delay(5);
 }
 
+// Convert press/release events of the individual buttons into
+// axis movements of the HID device.
 void buttonEvent(int8_t index, int8_t event)
 {
   switch(index)
